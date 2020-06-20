@@ -1,9 +1,11 @@
-import org.apache.spark.sql.SparkSession
+import org.apache.log4j.{Level, Logger};
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions._;
 
 
 object NetflixStockAnalysis {
   def main(args: Array[String]): Unit = {
+    Logger.getLogger("org").setLevel(Level.ERROR);
     val spark = SparkSession.builder()
       .appName("Stock")
       .master("local[*]").getOrCreate();
@@ -19,9 +21,7 @@ object NetflixStockAnalysis {
     println(df.filter("Close < 600").count());
     println((df.filter("High > 500").count()*1.0/df.count())*100)
     df.select(corr("High","Volume")).show()
-    df.withColumn("year", year($"Date")).select("year","High").groupBy("year").max("High").orderBy("year").show()
-    df.withColumn("month", month($"Date")).select("month", "Close").groupBy("month").mean("Close").orderBy("month").show()
-
-
+    df.withColumn("year", year(df("Date"))).select("year","High").groupBy("year").max("High").orderBy("year").show()
+    df.withColumn("month", month(df("Date"))).select("month", "Close").groupBy("month").mean("Close").orderBy("month").show()
   }
 }

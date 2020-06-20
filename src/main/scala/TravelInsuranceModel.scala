@@ -1,19 +1,18 @@
-import org.apache.spark.sql.SparkSession
+import org.apache.log4j.{Level, Logger};
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics;
-import org.apache.spark.ml.feature.StringIndexer;
-import org.apache.spark.ml.feature.OneHotEncoder;
-import org.apache.spark.ml.feature.VectorAssembler;
-import org.apache.spark.ml.classification.LogisticRegression;
+import org.apache.spark.ml.feature.{OneHotEncoderEstimator, StringIndexer, VectorAssembler};
+import org.apache.spark.ml.classification.{LogisticRegression, LogisticRegressionModel};
 import org.apache.spark.ml.tuning.TrainValidationSplit;
 import org.apache.spark.ml.tuning.TrainValidationSplitModel;
 import org.apache.spark.ml.tuning.ParamGridBuilder;
-import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
+import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator;
 import org.apache.spark.ml.Pipeline;
 import org.apache.spark.sql.Encoders;
 
-
 object TravelInsuranceModel {
   def main(args: Array[String]): Unit = {
+    Logger.getLogger("org").setLevel(Level.ERROR);
     val spark = SparkSession.builder()
       .appName("Insurance")
       .master("local[*]").getOrCreate();
@@ -39,7 +38,7 @@ object TravelInsuranceModel {
     val trainWithLabel = claimIndexer.fit(trainTest).transform(trainTest);
     val holdoutWithLabel = claimIndexer.fit(holdout).transform(holdout);
 
-    val ohe = new OneHotEncoder().setInputCols(Array("agencyIndex", "typeIndex",
+    val ohe = new OneHotEncoderEstimator().setInputCols(Array("agencyIndex", "typeIndex",
       "productIndex", "destinationIndex" ,"genderIndex"))
       .setOutputCols(Array("agencyVector", "typeVector", "productVector",
         "destinationVector", "genderVector"));
@@ -60,26 +59,18 @@ object TravelInsuranceModel {
       .setEstimatorParamMaps(paramMap).setTrainRatio(0.75);
 
     val pipeline = new Pipeline().setStages(Array(agencyIndexer,typeIndex,productIndex,destinationIndexer,genderIndexer,ohe,assembler,tvs));
-
     val pipelineModel = pipeline.fit(trainWithLabel);
-
     val holdoutToEval = pipelineModel.transform(holdoutWithLabel).drop("rawPrediction", "probability", "prediction")
-
-
     val bestModel = pipelineModel.stages(pipelineModel.stages.size-1).asInstanceOf[TrainValidationSplitModel].bestModel
-
     val logisticRegression = bestModel.asInstanceOf[LogisticRegressionModel].evaluate(holdoutToEval)
-
     holdoutWithLabel.groupBy("label").count().show()
 
-
-
-    val predictions = logisticRegression.predictions.select("prediction").as(Encoders.DOUBLE).collect();
-    val labels = logisticRegression.predictions.select("label").as(Encoders.DOUBLE).collect();
+    val predictions = logisticRegression.predictions.select("prediction").as(Encoders.scalaDouble).collect();
+    val labels = logisticRegression.predictions.select("label").as(Encoders.scalaDouble).collect();
     val predictionsAndLabels = predictions zip labels
     val rdd = spark.sparkContext.parallelize(predictionsAndLabels);
-    val metrics = new BinaryClassificationMetrics(rdd);
 
+    val metrics = new BinaryClassificationMetrics(scoreAndLabels = rdd);
     println(logisticRegression.accuracy);
     println(logisticRegression.fMeasureByLabel);
     println(metrics.areaUnderROC);

@@ -1,10 +1,12 @@
-import org.apache.spark.sql.{Encoders, SparkSession}
-import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions._
+import org.apache.log4j.{Level, Logger};
+import org.apache.spark.sql.{Encoders, SparkSession};
+import org.apache.spark.sql.expressions.Window;
+import org.apache.spark.sql.functions._;
 
 
 object TeslaStockVolatility {
   def main(args: Array[String]): Unit = {
+    Logger.getLogger("org").setLevel(Level.ERROR);
     val spark = SparkSession.builder()
       .appName("Stock")
       .master("local[*]").getOrCreate();
